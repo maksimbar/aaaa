@@ -1,0 +1,14 @@
+{
+    "packages": {
+      "packages/package-a": {
+        "release-type": "./tools/release-types/no-major-release.js",
+        "package-name": "@myorg/package-a"
+      },
+      "packages/package-b": {
+        "release-type": "./tools/release-types/no-major-release.js",
+        "package-name": "@myorg/package-b"
+      }
+    },
+    "plugins": {}
+  }
+  
