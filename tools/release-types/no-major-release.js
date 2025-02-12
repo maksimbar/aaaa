@@ -1,43 +1,53 @@
-// tools/release-types/no-major-release.js
+// tools/changelog/custom-changelog.js
 
-const { Node } = require('release-please/build/src/releasers/node');
-const { parseConventionalCommits } = require('release-please/build/src/commit-message/parse');
-const { maxBumpType, BumpType } = require('release-please/build/src/util/versioning');
+const { DefaultChangelogNotes } = require('release-please/build/src/changelog-notes/default');
+const { ConventionalCommit } = require('release-please/build/src/commit-message/conventional-commit');
 
-class NoMajorNode extends Node {
+class CustomChangelog extends DefaultChangelogNotes {
   /**
-   * Override how we determine the bump from commits.
-   *
-   * Instead of the standard "BREAKING CHANGE => major," we do "BREAKING => minor."
-   * Also, we ensure `chore`, `fix` => patch, and `feat`, `breaking`, `deprecate` => minor.
+   * Override the `_groupCommits` method to group
+   * "breaking:" commits under a "Breaking Changes" heading,
+   * "deprecate:" commits under "Deprecations," etc.
    */
-  async _detectSemanticCommits(commits) {
-    // parseConventionalCommits is the built-in parser that returns an array of conventional commit info
-    const cc = parseConventionalCommits(commits);
+  _groupCommits(conventionalCommits) {
+    const groups = {
+      fix: { title: 'Bug Fixes', commits: [] },
+      feat: { title: 'Features', commits: [] },
+      breaking: { title: 'Breaking Changes (via `breaking:`)', commits: [] },
+      deprecate: { title: 'Deprecations', commits: [] },
+      others: { title: 'Other Changes', commits: [] },
+    };
 
-    // Start from no bump (patch is the smallest, but let's store as 'undefined' for clarity)
-    let bump = BumpType.PATCH; // or BumpType.PATCH by default
-
-    for (const commit of cc) {
-      const type = commit.type;
-      // By default, release-please uses fix => patch, feat => minor, "BREAKING" => major
-      // We'll override that logic.
-
-      if (type === 'feat' || type === 'breaking' || type === 'deprecate') {
-        // We interpret these as "minor"
-        bump = maxBumpType(bump, BumpType.MINOR);
-      } else if (type === 'chore' || type === 'fix') {
-        // patch is the default, so just ensure we never go bigger than minor from these
-        bump = maxBumpType(bump, BumpType.PATCH);
+    for (const commit of conventionalCommits) {
+      // commit.type might be 'feat', 'fix', 'breaking', 'deprecate', etc.
+      switch (commit.type) {
+        case 'fix':
+          groups.fix.commits.push(commit);
+          break;
+        case 'feat':
+          groups.feat.commits.push(commit);
+          break;
+        case 'breaking':
+          groups.breaking.commits.push(commit);
+          break;
+        case 'deprecate':
+          groups.deprecate.commits.push(commit);
+          break;
+        default:
+          groups.others.commits.push(commit);
       }
-
-      // If the commit has BREAKING CHANGE notes, normally we do major
-      // but we want to ignore that => treat as minor at most.
-      // So we do NOT do the normal "commit.breaking = major" logic
     }
 
-    return bump;
+    // Now convert this object into an array of groups in the order we want them to appear:
+    const orderedGroups = [];
+    if (groups.fix.commits.length) orderedGroups.push(groups.fix);
+    if (groups.feat.commits.length) orderedGroups.push(groups.feat);
+    if (groups.breaking.commits.length) orderedGroups.push(groups.breaking);
+    if (groups.deprecate.commits.length) orderedGroups.push(groups.deprecate);
+    if (groups.others.commits.length) orderedGroups.push(groups.others);
+
+    return orderedGroups;
   }
 }
 
-module.exports = { NoMajorNode };
+module.exports = { CustomChangelog };
